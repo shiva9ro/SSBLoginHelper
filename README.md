@@ -34,7 +34,7 @@ SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroid
 
 署名鍵とキーストアのパスワードは安全に保管してください。更新版も必ず同じ鍵で署名します。異なる鍵で署名したAPKは既存アプリへ上書きインストールできません。
 
-一時的な動作確認だけであれば、`Build` → `Build App Bundle(s) or APK(s)` → `Build APK(s)` でデバッグAPKを生成できます。通常の生成先は `app/build/outputs/apk/debug/app-debug.apk` です。
+一時的な動作確認だけであれば、ビルドバリアントに `debug` を選び、`Build` → `Generate Bundle(s) / APK(s)` → `Generate APK(s)` でデバッグAPKを生成できます。デバッグAPKはAndroid SDKのデバッグ鍵で自動的に署名され、通常は `app/build/outputs/apk/debug/app-debug.apk` に生成されます。
 
 ## スマートフォンへのインストール
 
