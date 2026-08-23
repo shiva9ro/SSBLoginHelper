@@ -25,49 +25,54 @@ SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroid
 
 ## ビルド
 
-Android Studioでプロジェクトを開き、デバッグ用APKの場合は次を選択します。
+継続して利用するAPKは、Android Studioで署名付きリリースAPKとして作成します。
 
-`Build` → `Build App Bundle(s) or APK(s)` → `Build APK(s)`
+1. `Build` → `Generate Signed App Bundle or APK` を選択します。
+2. `APK`、モジュール `app` の順に選択します。
+3. 自分のキーストアと署名鍵を指定します。初回は新規作成できます。
+4. ビルド種類に `release` を指定してAPKを生成します。
 
-生成先は通常 `app/build/outputs/apk/debug/app-debug.apk` です。継続して利用・更新する場合は、同じ署名鍵で署名してください。異なる鍵で署名したAPKは既存アプリへ上書きインストールできません。
+署名鍵とキーストアのパスワードは安全に保管してください。更新版も必ず同じ鍵で署名します。異なる鍵で署名したAPKは既存アプリへ上書きインストールできません。
 
-## Android端末へのインストール
+一時的な動作確認だけであれば、`Build` → `Build App Bundle(s) or APK(s)` → `Build APK(s)` でデバッグAPKを生成できます。通常の生成先は `app/build/outputs/apk/debug/app-debug.apk` です。
 
-開発者向けオプションとUSBデバッグを有効にした端末をAndroid Studioへ接続し、対象端末を選んで実行します。APKを直接インストールする場合は、Android SDKのADBを使用できます。
+## スマートフォンへのインストール
+
+1. 作成した署名付きAPKをスマートフォンへコピーします。
+2. スマートフォンのファイルアプリなどからAPKを開きます。
+3. 必要に応じて、そのファイルアプリに「不明なアプリのインストール」を許可します。
+4. 画面の案内に従ってインストールします。
+
+同じ署名鍵で作成した更新版は、同じ方法でAPKを開くと既存アプリを更新できます。Android Studioから直接動作確認する場合や、開発用途ではUSBデバッグとADBも使用できます。
 
 ```text
 adb install path/to/app.apk
-```
-
-同じ署名鍵で作成した更新版を上書きする場合は次のようにします。
-
-```text
-adb install -r path/to/app.apk
 ```
 
 ## Chromebookへのインストール
 
 1. ChromeOSの設定でLinux開発環境を有効にします。
 2. Linuxの設定から「Androidアプリの開発」を開き、ADBデバッグを有効にします。端末の再起動と警告への同意が必要です。
-3. LinuxターミナルでADBをインストールします。
+3. 作成した署名付きAPKをChromebookの「Linuxファイル」へコピーします。
+4. LinuxターミナルでADBをインストールします。
 
 ```text
 sudo apt install adb
 ```
 
-4. ChromebookのAndroid環境へ接続し、表示されたデバッグ許可ダイアログを承認します。
+5. 同じChromebook内のLinux環境からAndroid環境へ接続し、表示されたデバッグ許可ダイアログを承認します。
 
 ```text
 adb connect arc
 ```
 
-5. Linux環境からAPKをインストールします。
+6. Linux環境からAPKをインストールします。
 
 ```text
-adb install path/to/app.apk
+adb install ~/app-release.apk
 ```
 
-同じ署名鍵の更新版は `adb install -r path/to/app.apk` で上書きできます。
+ファイル名や保存場所が異なる場合は、実際のAPKのパスへ置き換えてください。同じ署名鍵の更新版は `adb install -r ~/app-release.apk` で上書きできます。
 
 参考: [Android Developers - ChromeOSの開発環境を準備する](https://developer.android.com/develop/devices/chromeos/learn/development-environment)
 
