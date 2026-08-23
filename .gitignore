@@ -1,0 +1,19 @@
+*.iml
+.gradle/
+**/build/
+/local.properties
+.idea/
+.kotlin/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Signing keys and packaged applications must never be committed.
+AndroidKeys/
+*.jks
+*.keystore
+*.apk
+*.aab
+/app/release/

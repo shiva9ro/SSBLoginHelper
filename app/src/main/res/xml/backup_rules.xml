@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Android Keystoreの鍵はバックアップされないため、暗号文も除外する。 -->
+    <exclude
+        domain="sharedpref"
+        path="encrypted_credentials.xml" />
+    <exclude
+        domain="sharedpref"
+        path="automation_control.xml" />
+</full-backup-content>
