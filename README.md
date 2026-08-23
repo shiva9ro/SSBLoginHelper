@@ -90,6 +90,10 @@ adb install ~/app-release.apk
 
 参考: [Android Developers - ChromeOSの開発環境を準備する](https://developer.android.com/develop/devices/chromeos/learn/development-environment)
 
+### Chromebookでの表示サイズ
+
+Androidアプリのウィンドウサイズが固定される場合は、対象アプリのタイトルバーから「サイズ変更可能」を選択してください。これはChromeOS側の表示設定です。
+
 ## アプリの初期設定
 
 1. SSB Login Helperを起動します。
@@ -109,9 +113,3 @@ adb install ~/app-release.apk
 ## 注意
 
 このアプリはSSBProおよび対象Webサイトの画面要素に依存します。SSBProやWebサイト側の画面構成、表示文字、View IDが変更された場合は、自動操作の調整が必要になることがあります。
-
-## トラブルシューティング
-
-### Chromebookでアプリのウィンドウサイズを変更できない
-
-Chromebook上でAndroidアプリのウィンドウサイズが固定される場合は、対象アプリのタイトルバーにあるサイズ設定から「サイズ変更可能」を選択してください。これはChromeOS側のウィンドウ設定であり、SSB Login Helperの初期設定ではありません。
