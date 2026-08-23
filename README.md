@@ -27,12 +27,24 @@ SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroid
 
 継続して利用するAPKは、Android Studioで署名付きリリースAPKとして作成します。
 
-1. `Build` → `Generate Signed App Bundle or APK` を選択します。
-2. `APK`、モジュール `app` の順に選択します。
-3. 自分のキーストアと署名鍵を指定します。初回は新規作成できます。
-4. ビルド種類に `release` を指定してAPKを生成します。
+1. 更新版を作る場合は、`app/build.gradle.kts` の `versionCode`を前回より大きい整数へ変更し、利用者向けの `versionName` も更新します。
+2. `Build` → `Generate Signed App Bundle or APK` を選択します。
+3. `APK` を選択して次へ進み、モジュールに `app` を指定します。
+4. 自分のキーストア、鍵のエイリアス、各パスワードを指定します。初回は `Create new` からキーストアと署名鍵を作成できます。
+5. 次の画面で出力先とビルド種類 `release` を指定し、必要なAPK Signature Versionsを選択します。特別な互換性要件がなければAndroid Studioの既定の選択を使用します。
+6. `Create` を押して署名付きAPKを生成します。
 
 署名鍵とキーストアのパスワードは安全に保管してください。更新版も必ず同じ鍵で署名します。異なる鍵で署名したAPKは既存アプリへ上書きインストールできません。
+
+`versionCode` と `versionName` の初期値は次の場所にあります。
+
+```kotlin
+// app/build.gradle.kts
+defaultConfig {
+    versionCode = 2
+    versionName = "1.1"
+}
+```
 
 一時的な動作確認だけであれば、ビルドバリアントに `debug` を選び、`Build` → `Generate Bundle(s) / APK(s)` → `Generate APK(s)` でデバッグAPKを生成できます。デバッグAPKはAndroid SDKのデバッグ鍵で自動的に署名され、通常は `app/build/outputs/apk/debug/app-debug.apk` に生成されます。
 
@@ -50,6 +62,8 @@ adb install path/to/app.apk
 ```
 
 ## Chromebookへのインストール
+
+このLinux環境からADBデバッグを有効にする方法は、Googleの公式案内では2020年以降に発売されたChromebookが対象です。設定項目が表示されない機種や管理対象端末では利用できない場合があります。
 
 1. ChromeOSの設定でLinux開発環境を有効にします。
 2. Linuxの設定から「Androidアプリの開発」を開き、ADBデバッグを有効にします。端末の再起動と警告への同意が必要です。
