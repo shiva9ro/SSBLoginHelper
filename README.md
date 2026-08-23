@@ -18,7 +18,6 @@ SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroid
 ## 前提
 
 - SSBProがインストールされ、接続先などの初期設定が完了していること
-- PC版を利用する場合、SSBProの共通ブックマーク内に「新Desknets(PC版)」が登録されていること
 - 利用者自身がソースコードを確認し、Android StudioでAPKをビルドできること
 
 ビルド済みAPKは配布していません。
