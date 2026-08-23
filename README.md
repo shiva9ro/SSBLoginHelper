@@ -79,8 +79,6 @@ adb install path/to/app.apk
 4. Androidのユーザー補助設定で「SSB Login Helper」を有効にし、警告内容を確認して許可します。
 5. SSB Login Helperへ戻り、「スマホ版を開く」または「PC版を開く」を押します。
 
-ChromeOSでSSBProのウィンドウサイズが固定される場合は、SSBProのタイトルバーにあるサイズ設定を「サイズ変更可能」に切り替えます。
-
 ## セキュリティ
 
 - 認証情報はAndroid KeystoreのAES-256/GCM鍵で暗号化して保存します。
@@ -92,3 +90,9 @@ ChromeOSでSSBProのウィンドウサイズが固定される場合は、SSBPro
 ## 注意
 
 このアプリはSSBProおよび対象Webサイトの画面要素に依存します。SSBProやWebサイト側の画面構成、表示文字、View IDが変更された場合は、自動操作の調整が必要になることがあります。
+
+## トラブルシューティング
+
+### Chromebookでアプリのウィンドウサイズを変更できない
+
+Chromebook上でAndroidアプリのウィンドウサイズが固定される場合は、対象アプリのタイトルバーにあるサイズ設定から「サイズ変更可能」を選択してください。これはChromeOS側のウィンドウ設定であり、SSB Login Helperの初期設定ではありません。
