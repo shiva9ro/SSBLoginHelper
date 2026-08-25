@@ -400,6 +400,16 @@ private fun MainScreen() {
                                     statusMessage = it
                                 }
                             )
+                        },
+                        onLaunchMail = {
+                            launchSsbPro(
+                                context = context,
+                                target =
+                                    AutomationTarget.MAIL,
+                                onError = {
+                                    statusMessage = it
+                                }
+                            )
                         }
                     )
 
@@ -637,7 +647,8 @@ private fun AccessibilityRequiredSection(
 @Composable
 private fun ReadySection(
     onLaunchMobile: () -> Unit,
-    onLaunchPc: () -> Unit
+    onLaunchPc: () -> Unit,
+    onLaunchMail: () -> Unit
 ) {
     Card(
         modifier =
@@ -678,6 +689,14 @@ private fun ReadySection(
                     Modifier.fillMaxWidth()
             ) {
                 Text("PC版を開く")
+            }
+
+            Button(
+                onClick = onLaunchMail,
+                modifier =
+                    Modifier.fillMaxWidth()
+            ) {
+                Text("メールを開く")
             }
 
             Text(

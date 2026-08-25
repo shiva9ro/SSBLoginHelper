@@ -12,6 +12,53 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
+ * 現在待っている画面または処理段階。
+ */
+internal enum class AutomationPhase {
+    START,
+    WAITING_AFTER_SSB_LOGIN,
+    WAITING_FOR_MOBILE_PAGE,
+    WAITING_FOR_MOBILE_HOME,
+    WAITING_FOR_MOBILE_BOOKMARK,
+    WAITING_FOR_BROWSER_CHROME,
+    WAITING_FOR_BOOKMARK_ROOT,
+    WAITING_FOR_PC_BOOKMARK,
+    WAITING_FOR_PC_LOGIN,
+    WAITING_FOR_PC_PORTAL,
+    WAITING_FOR_MAIL_BOOKMARK,
+    WAITING_FOR_MAIL_LOGIN,
+    WAITING_FOR_MAIL_INBOX
+}
+
+/**
+ * 証明書警告を閉じた後に再開する処理段階を返す。
+ *
+ * SSBPro本体ログイン直後の警告だけは、選択された目標に応じて
+ * 次の段階へ進む。それ以外は、警告が割り込んだ段階から再開する。
+ */
+internal fun phaseAfterSecurityWarning(
+    currentPhase: AutomationPhase,
+    target: AutomationTarget?
+): AutomationPhase {
+    return when (currentPhase) {
+        AutomationPhase.START,
+        AutomationPhase.WAITING_AFTER_SSB_LOGIN -> {
+            when (target) {
+                AutomationTarget.PC,
+                AutomationTarget.MAIL ->
+                    AutomationPhase.WAITING_FOR_BROWSER_CHROME
+
+                AutomationTarget.MOBILE,
+                null ->
+                    AutomationPhase.WAITING_FOR_MOBILE_PAGE
+            }
+        }
+
+        else -> currentPhase
+    }
+}
+
+/**
  * Helperアプリから開始された1回の自動化セッションを処理する。
  *
  * セッション完了後または失敗後は、
@@ -111,76 +158,6 @@ class SSBAccessibilityService : AccessibilityService() {
          * 自動再試行はしない。
          */
         FAILED
-    }
-
-    /**
-     * 現在待っている画面または処理段階。
-     */
-    private enum class AutomationPhase {
-        /*
-         * SSBPro起動直後。
-         *
-         * 前回表示していた画面が残っている可能性もあるため、
-         * 現在の既知画面を判定する。
-         */
-        START,
-
-        /*
-         * SSBPro本体のログインボタンを押した後。
-         *
-         * 証明書警告、スマホ版画面、または
-         * PC版へ進むためのブラウザー操作領域を待つ。
-         */
-        WAITING_AFTER_SSB_LOGIN,
-
-        /*
-         * 証明書警告のOKを押した後。
-         *
-         * スマホ版ログイン画面または
-         * スマホ版ログイン済み画面を待つ。
-         */
-        WAITING_FOR_MOBILE_PAGE,
-
-        /*
-         * スマホ版ログインボタンを押した後。
-         *
-         * ログインダイアログが消えるのを待つ。
-         */
-        WAITING_FOR_MOBILE_HOME,
-
-        /*
-         * PC版を選んだ場合、スマホ版サイトへはログインせず、
-         * SSBPro本体のブックマークボタンが利用可能になるのを待つ。
-         */
-        WAITING_FOR_BROWSER_CHROME,
-
-        /*
-         * SSBProのブックマークボタンを押した後。
-         *
-         * 「共通ブックマーク」を待つ。
-         */
-        WAITING_FOR_BOOKMARK_ROOT,
-
-        /*
-         * 「共通ブックマーク」を押した後。
-         *
-         * 「新Desknets(PC版)」を待つ。
-         */
-        WAITING_FOR_PC_BOOKMARK,
-
-        /*
-         * 「新Desknets(PC版)」を押した後。
-         *
-         * PC版ログイン画面を待つ。
-         */
-        WAITING_FOR_PC_LOGIN,
-
-        /*
-         * PC版ログインボタンを押した後。
-         *
-         * dn-h-usernameが表示されるのを待つ。
-         */
-        WAITING_FOR_PC_PORTAL
     }
 
     private val handler =
@@ -408,26 +385,64 @@ class SSBAccessibilityService : AccessibilityService() {
         }
 
         /*
-         * PC版ログイン成功を最優先で判定する。
+         * メールログイン成功を最優先で判定する。
+         */
+        if (
+            automationTarget == AutomationTarget.MAIL &&
+            isMailInboxDisplayed(root)
+        ) {
+            completeSession(
+                "メールログインが完了しました。"
+            )
+            return
+        }
+
+        /*
+         * スマホ版が既にログイン済みなら、そのまま完了する。
+         */
+        if (
+            automationTarget == AutomationTarget.MOBILE &&
+            isMobileHomeDisplayed(root)
+        ) {
+            completeSession(
+                "スマホ版ログイン済み画面を確認しました。"
+            )
+            return
+        }
+
+        /*
+         * PC版ログイン成功を判定する。
          */
         if (isPcPortalDisplayed(root)) {
-            if (
-                automationTarget ==
-                AutomationTarget.PC
-            ) {
-                completeSession(
-                    "PC版ログインが完了しました。"
-                )
-            } else {
-                /*
-                 * スマホ版を選んだのに、既にPC版へ
-                 * ログイン済みだった場合は何も操作せず終了する。
-                 */
-                completeSession(
-                    "PC版ログイン済み画面を確認しました。"
-                )
+            when (automationTarget) {
+                AutomationTarget.PC -> {
+                    completeSession(
+                        "PC版ログインが完了しました。"
+                    )
+                }
+
+                AutomationTarget.MOBILE,
+                AutomationTarget.MAIL -> {
+                    openBookmark(root)
+                }
+
+                null -> {
+                    failSession(
+                        "自動化の目標画面が設定されていません。"
+                    )
+                }
             }
 
+            return
+        }
+
+        /*
+         * 証明書警告は画面遷移の途中ならどの段階でも現れ得る。
+         * 各段階より先に判定し、PC版ブックマークを開いた後に
+         * 表示された場合もOKを押せるようにする。
+         */
+        if (isSecurityWarning(root)) {
+            clickSecurityWarning(root)
             return
         }
 
@@ -449,6 +464,11 @@ class SSBAccessibilityService : AccessibilityService() {
             AutomationPhase
                 .WAITING_FOR_MOBILE_HOME -> {
                 inspectMobileHome(root)
+            }
+
+            AutomationPhase
+                .WAITING_FOR_MOBILE_BOOKMARK -> {
+                inspectMobileBookmark(root)
             }
 
             AutomationPhase
@@ -481,6 +501,21 @@ class SSBAccessibilityService : AccessibilityService() {
                  */
                 scheduleInspection()
             }
+
+            AutomationPhase
+                .WAITING_FOR_MAIL_BOOKMARK -> {
+                inspectMailBookmark(root)
+            }
+
+            AutomationPhase
+                .WAITING_FOR_MAIL_LOGIN -> {
+                inspectMailLogin(root)
+            }
+
+            AutomationPhase
+                .WAITING_FOR_MAIL_INBOX -> {
+                scheduleInspection()
+            }
         }
     }
 
@@ -498,13 +533,9 @@ class SSBAccessibilityService : AccessibilityService() {
                 performSsbLogin(root)
             }
 
-            isSecurityWarning(root) -> {
-                clickSecurityWarning(root)
-            }
-
-            automationTarget ==
-                    AutomationTarget.PC &&
+            !isMobileLoginPage(root) &&
                     !isPcLoginPage(root) &&
+                    !isMailLoginPage(root) &&
                     hasBookmarkButton(root) -> {
                 openBookmark(root)
             }
@@ -516,10 +547,21 @@ class SSBAccessibilityService : AccessibilityService() {
             findFirstByExactText(
                 root,
                 "共通ブックマーク"
-            ) != null -> {
+            ) != null &&
+                    findFirstByExactText(
+                        root,
+                        "新Desknets(PC版)"
+                    ) == null &&
+                    findFirstByExactText(
+                        root,
+                        "新Desknets（スマホ版)"
+                    ) == null &&
+                    findFirstByExactText(
+                        root,
+                        "事務処理用PCメール"
+                    ) == null -> {
                 if (
-                    automationTarget ==
-                    AutomationTarget.PC
+                    automationTarget != null
                 ) {
                     clickCommonBookmark(root)
                 } else {
@@ -530,34 +572,39 @@ class SSBAccessibilityService : AccessibilityService() {
                 }
             }
 
-            findFirstByExactText(
-                root,
-                "新Desknets(PC版)"
-            ) != null -> {
-                if (
-                    automationTarget ==
-                    AutomationTarget.PC
-                ) {
-                    clickPcBookmark(root)
-                } else {
-                    failSession(
-                        "スマホ版を選択していますが、" +
-                                "PC版ブックマーク画面が表示されています。"
-                    )
-                }
+            isCommonBookmarkDestinationList(root) -> {
+                openSelectedBookmark(root)
             }
 
             isPcLoginPage(root) -> {
-                if (
-                    automationTarget ==
-                    AutomationTarget.PC
-                ) {
-                    performPcLogin(root)
-                } else {
-                    failSession(
-                        "スマホ版を選択していますが、" +
-                                "PC版ログイン画面が表示されています。"
-                    )
+                when (automationTarget) {
+                    AutomationTarget.PC ->
+                        performPcLogin(root)
+
+                    AutomationTarget.MOBILE,
+                    AutomationTarget.MAIL ->
+                        openBookmark(root)
+
+                    null ->
+                        failSession(
+                            "自動化の目標画面が設定されていません。"
+                        )
+                }
+            }
+
+            isMailLoginPage(root) -> {
+                when (automationTarget) {
+                    AutomationTarget.MAIL ->
+                        performMailLogin(root)
+
+                    AutomationTarget.MOBILE,
+                    AutomationTarget.PC ->
+                        openBookmark(root)
+
+                    null ->
+                        failSession(
+                            "自動化の目標画面が設定されていません。"
+                        )
                 }
             }
 
@@ -577,12 +624,8 @@ class SSBAccessibilityService : AccessibilityService() {
         root: AccessibilityNodeInfo
     ) {
         when {
-            isSecurityWarning(root) -> {
-                clickSecurityWarning(root)
-            }
-
-            automationTarget ==
-                    AutomationTarget.PC -> {
+            automationTarget !=
+                    AutomationTarget.MOBILE -> {
                 inspectBrowserChrome(root)
             }
 
@@ -670,7 +713,8 @@ class SSBAccessibilityService : AccessibilityService() {
                 )
             }
 
-            AutomationTarget.PC -> {
+            AutomationTarget.PC,
+            AutomationTarget.MAIL -> {
                 openBookmark(root)
             }
 
@@ -701,6 +745,55 @@ class SSBAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 共通ブックマーク内に、今回選択された項目が表示されているか。
+     */
+    private fun isCommonBookmarkDestinationList(
+        root: AccessibilityNodeInfo
+    ): Boolean {
+        val targetText =
+            when (automationTarget) {
+                AutomationTarget.MOBILE ->
+                    "新Desknets（スマホ版)"
+
+                AutomationTarget.PC ->
+                    "新Desknets(PC版)"
+
+                AutomationTarget.MAIL ->
+                    "事務処理用PCメール"
+
+                null -> return false
+            }
+
+        return findFirstByExactText(
+            root,
+            targetText
+        ) != null
+    }
+
+    /**
+     * 共通ブックマークから、今回選択された項目を開く。
+     */
+    private fun openSelectedBookmark(
+        root: AccessibilityNodeInfo
+    ) {
+        when (automationTarget) {
+            AutomationTarget.MOBILE ->
+                clickMobileBookmark(root)
+
+            AutomationTarget.PC ->
+                clickPcBookmark(root)
+
+            AutomationTarget.MAIL ->
+                clickMailBookmark(root)
+
+            null ->
+                failSession(
+                    "自動化の目標画面が設定されていません。"
+                )
+        }
+    }
+
+    /**
      * 共通ブックマーク内のPC版リンクを待つ。
      */
     private fun inspectPcBookmark(
@@ -719,6 +812,42 @@ class SSBAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 共通ブックマーク内のスマホ版リンクを待つ。
+     */
+    private fun inspectMobileBookmark(
+        root: AccessibilityNodeInfo
+    ) {
+        if (
+            findFirstByExactText(
+                root,
+                "新Desknets（スマホ版)"
+            ) != null
+        ) {
+            clickMobileBookmark(root)
+        } else {
+            scheduleInspection()
+        }
+    }
+
+    /**
+     * 共通ブックマーク内のメールリンクを待つ。
+     */
+    private fun inspectMailBookmark(
+        root: AccessibilityNodeInfo
+    ) {
+        if (
+            findFirstByExactText(
+                root,
+                "事務処理用PCメール"
+            ) != null
+        ) {
+            clickMailBookmark(root)
+        } else {
+            scheduleInspection()
+        }
+    }
+
+    /**
      * PC版ログイン画面を待つ。
      */
     private fun inspectPcLogin(
@@ -726,6 +855,19 @@ class SSBAccessibilityService : AccessibilityService() {
     ) {
         if (isPcLoginPage(root)) {
             performPcLogin(root)
+        } else {
+            scheduleInspection()
+        }
+    }
+
+    /**
+     * メールログイン画面を待つ。
+     */
+    private fun inspectMailLogin(
+        root: AccessibilityNodeInfo
+    ) {
+        if (isMailLoginPage(root)) {
+            performMailLogin(root)
         } else {
             scheduleInspection()
         }
@@ -909,6 +1051,9 @@ class SSBAccessibilityService : AccessibilityService() {
     private fun clickSecurityWarning(
         root: AccessibilityNodeInfo
     ) {
+        val phaseBeforeWarning =
+            automationPhase
+
         val button =
             findFirstByViewId(
                 root,
@@ -926,17 +1071,25 @@ class SSBAccessibilityService : AccessibilityService() {
             return
         }
 
-        setPhase(
-            when (automationTarget) {
-                AutomationTarget.PC ->
-                    AutomationPhase
-                        .WAITING_FOR_BROWSER_CHROME
+        val resumePhase =
+            phaseAfterSecurityWarning(
+                currentPhase = phaseBeforeWarning,
+                target = automationTarget
+            )
 
-                AutomationTarget.MOBILE,
-                null ->
-                    AutomationPhase
-                        .WAITING_FOR_MOBILE_PAGE
-            }
+        /*
+         * 同じ警告が画面に残った場合にタイムアウト計測を
+         * 毎回リセットしないよう、段階が変わる場合だけ更新する。
+         */
+        if (resumePhase != phaseBeforeWarning) {
+            setPhase(resumePhase)
+        }
+
+        Log.i(
+            TAG,
+            "Security warning OK clicked: " +
+                    "phase=$phaseBeforeWarning, " +
+                    "resumePhase=$resumePhase"
         )
 
         scheduleInspection(
@@ -983,16 +1136,17 @@ class SSBAccessibilityService : AccessibilityService() {
     /**
      * スマホ版へログイン済みか。
      *
-     * XML上ではスマホ版本体のlogin-pageが存在し、
-     * ログインダイアログのd-logindialog-pageが消える。
+     * XML上ではログイン後だけportal-pageが存在する。
+     * 読み込み途中の誤判定を避けるため、login-pageの消失だけでは
+     * ログイン成功と判断しない。
      */
     private fun isMobileHomeDisplayed(
         root: AccessibilityNodeInfo
     ): Boolean {
-        val mobilePageExists =
+        val portalPageExists =
             findFirstByViewId(
                 root,
-                "login-page"
+                "portal-page"
             ) != null
 
         val loginDialogExists =
@@ -1001,9 +1155,31 @@ class SSBAccessibilityService : AccessibilityService() {
                 "d-logindialog-page"
             ) != null
 
+        val pcPageExists =
+            findFirstByViewId(
+                root,
+                "dn-h-username"
+            ) != null ||
+                    findFirstByViewId(
+                        root,
+                        "login-input"
+                    ) != null
+
+        val mailPageExists =
+            findFirstByViewId(
+                root,
+                "loginbox"
+            ) != null ||
+                    findFirstByViewId(
+                        root,
+                        "maillist"
+                    ) != null
+
         return (
-                mobilePageExists &&
-                        !loginDialogExists
+                portalPageExists &&
+                        !loginDialogExists &&
+                        !pcPageExists &&
+                        !mailPageExists
                 )
     }
 
@@ -1022,7 +1198,8 @@ class SSBAccessibilityService : AccessibilityService() {
                 performMobileLogin(root)
             }
 
-            AutomationTarget.PC -> {
+            AutomationTarget.PC,
+            AutomationTarget.MAIL -> {
                 if (hasBookmarkButton(root)) {
                     openBookmark(root)
                 } else {
@@ -1270,8 +1447,17 @@ class SSBAccessibilityService : AccessibilityService() {
         }
 
         setPhase(
-            AutomationPhase
-                .WAITING_FOR_PC_BOOKMARK
+            when (automationTarget) {
+                AutomationTarget.MAIL ->
+                    AutomationPhase.WAITING_FOR_MAIL_BOOKMARK
+
+                AutomationTarget.MOBILE ->
+                    AutomationPhase.WAITING_FOR_MOBILE_BOOKMARK
+
+                AutomationTarget.PC,
+                null ->
+                    AutomationPhase.WAITING_FOR_PC_BOOKMARK
+            }
         )
 
         scheduleInspection(
@@ -1313,6 +1499,68 @@ class SSBAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 「新Desknets（スマホ版)」を1回押す。
+     */
+    private fun clickMobileBookmark(
+        root: AccessibilityNodeInfo
+    ) {
+        val node =
+            findFirstByExactText(
+                root,
+                "新Desknets（スマホ版)"
+            )
+
+        if (
+            node == null ||
+            !clickNode(node)
+        ) {
+            failSession(
+                "スマホ版ブックマークを開けませんでした。"
+            )
+            return
+        }
+
+        setPhase(
+            AutomationPhase.WAITING_FOR_MOBILE_PAGE
+        )
+
+        scheduleInspection(
+            delayMillis = 1_000L
+        )
+    }
+
+    /**
+     * 「事務処理用PCメール」を1回押す。
+     */
+    private fun clickMailBookmark(
+        root: AccessibilityNodeInfo
+    ) {
+        val node =
+            findFirstByExactText(
+                root,
+                "事務処理用PCメール"
+            )
+
+        if (
+            node == null ||
+            !clickNode(node)
+        ) {
+            failSession(
+                "メールのブックマークを開けませんでした。"
+            )
+            return
+        }
+
+        setPhase(
+            AutomationPhase.WAITING_FOR_MAIL_LOGIN
+        )
+
+        scheduleInspection(
+            delayMillis = 1_000L
+        )
+    }
+
+    /**
      * PC版ログイン画面か。
      */
     private fun isPcLoginPage(
@@ -1328,6 +1576,99 @@ class SSBAccessibilityService : AccessibilityService() {
                             "login-btn"
                         ) != null
                 )
+    }
+
+    /**
+     * 事務処理用PCメールのログイン画面か。
+     */
+    private fun isMailLoginPage(
+        root: AccessibilityNodeInfo
+    ): Boolean {
+        return (
+                findFirstByViewId(root, "loginbox") != null &&
+                        findFirstByViewId(root, "id") != null &&
+                        findFirstByViewId(root, "pwd") != null &&
+                        findFirstByExactText(root, "Login") != null
+                )
+    }
+
+    /**
+     * 事務処理用PCメールへ1回だけログインする。
+     */
+    private fun performMailLogin(
+        root: AccessibilityNodeInfo
+    ) {
+        val credentials = credentialStore.load()
+
+        if (credentials == null) {
+            failSession(
+                "認証情報を読み込めませんでした。"
+            )
+            return
+        }
+
+        val loginIdNode = findFirstByViewId(root, "id")
+        val passwordNode = findFirstByViewId(root, "pwd")
+
+        if (
+            loginIdNode == null ||
+            passwordNode == null
+        ) {
+            scheduleInspection()
+            return
+        }
+
+        if (
+            !setText(loginIdNode, credentials.loginId) ||
+            !setText(passwordNode, credentials.password)
+        ) {
+            failSession(
+                "メールの認証情報を入力できませんでした。"
+            )
+            return
+        }
+
+        actionInProgress = true
+
+        handler.postDelayed(
+            {
+                val currentRoot = rootInActiveWindow
+
+                if (
+                    currentRoot == null ||
+                    currentRoot.packageName?.toString() != SSB_PACKAGE
+                ) {
+                    failSession(
+                        "メールログイン画面を再取得できませんでした。"
+                    )
+                    return@postDelayed
+                }
+
+                val loginButton =
+                    findFirstByExactText(
+                        currentRoot,
+                        "Login"
+                    )
+
+                if (loginButton == null) {
+                    failSession(
+                        "メールのLoginボタンを再取得できませんでした。"
+                    )
+                    return@postDelayed
+                }
+
+                setPhase(
+                    AutomationPhase.WAITING_FOR_MAIL_INBOX
+                )
+
+                if (!tapNodeCenter(loginButton)) {
+                    failSession(
+                        "メールのLoginボタンをタップできませんでした。"
+                    )
+                }
+            },
+            PC_LOGIN_CLICK_DELAY_MS
+        )
     }
 
     /**
@@ -1500,6 +1841,27 @@ class SSBAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * 事務処理用PCメールの受信トレイが表示されているか。
+     * メール件名や利用者情報には依存せず、固定IDだけで判定する。
+     */
+    private fun isMailInboxDisplayed(
+        root: AccessibilityNodeInfo
+    ): Boolean {
+        if (
+            findFirstByViewId(root, "id") != null ||
+            findFirstByViewId(root, "pwd") != null
+        ) {
+            return false
+        }
+
+        return (
+                findFirstByViewId(root, "page-folder2") != null &&
+                        findFirstByViewId(root, "maillist") != null &&
+                        findFirstByViewId(root, "main_menu") != null
+                )
+    }
+
+    /**
      * 現在段階を変更し、
      * タイムアウト計測を開始する。
      */
@@ -1540,6 +1902,10 @@ class SSBAccessibilityService : AccessibilityService() {
                     MOBILE_LOGIN_TIMEOUT_MS
 
                 AutomationPhase
+                    .WAITING_FOR_MOBILE_BOOKMARK ->
+                    BOOKMARK_TIMEOUT_MS
+
+                AutomationPhase
                     .WAITING_FOR_BROWSER_CHROME ->
                     MOBILE_PAGE_TIMEOUT_MS
 
@@ -1557,6 +1923,18 @@ class SSBAccessibilityService : AccessibilityService() {
 
                 AutomationPhase
                     .WAITING_FOR_PC_PORTAL ->
+                    PC_PORTAL_TIMEOUT_MS
+
+                AutomationPhase
+                    .WAITING_FOR_MAIL_BOOKMARK ->
+                    BOOKMARK_TIMEOUT_MS
+
+                AutomationPhase
+                    .WAITING_FOR_MAIL_LOGIN ->
+                    PC_LOGIN_TIMEOUT_MS
+
+                AutomationPhase
+                    .WAITING_FOR_MAIL_INBOX ->
                     PC_PORTAL_TIMEOUT_MS
             }
 

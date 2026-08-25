@@ -7,7 +7,8 @@ import android.content.Context
  */
 enum class AutomationTarget {
     MOBILE,
-    PC
+    PC,
+    MAIL
 }
 
 /**
