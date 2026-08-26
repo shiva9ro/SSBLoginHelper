@@ -1,48 +1,50 @@
 # SSB Login Helper
 
-SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroidアプリです。
-登録したログインIDとパスワードを端末内で暗号化して保存し、ユーザーがボタンを押したときだけユーザー補助サービスによる自動操作を1回実行します。
+English | [日本語](README.ja.md)
 
-## 対象範囲
+SSB Login Helper is an Android app that assists with login flows in SSBPro (Soliton SecureBrowser Pro). It encrypts and stores a login ID and password on the device, then performs one accessibility-driven automation run only after the user explicitly taps a launch button.
 
-このアプリは、開発者が所属する特定の組織のSSBPro接続環境に合わせて作っています。SSBProを利用するすべての環境で動く汎用ツールではなく、現在のコードをそのまま利用できるのは、この特定の接続環境に限られます。
+Related article (Japanese): [SSBProのログイン操作をワンタップにするAndroidアプリ「SSBLoginHelper」を作った](https://qiita.com/shiva9ro/items/95baf4d98abb0e5cdb5d)
 
-SSBProで認証した後の確認画面、共通ブックマークの構成、接続先サイトの入力欄やボタン、ログイン後の画面を判定する条件をコード内に実装しています。別の組織や接続環境へ対応させるには、実際の画面と操作手順を確認し、状態遷移や検出条件をコードから変更する必要があります。
+## Scope
 
-## 動作
+This app is tailored to one specific organization's SSBPro connection environment. It is not a general-purpose SSBPro automation tool, and the current code works as-is only with that environment.
 
-- スマホ版: SSBProへログインし、スマホ版サイトへログイン
-- PC版: SSBProへログインし、共通ブックマークからPC版サイトを開いてログイン
-- メール: SSBProへログインし、共通ブックマークの「事務処理用PCメール」を開いてログイン
-- PC版またはメールを選んだ場合、スマホ版サイトへのログインは行いません
+The code contains environment-specific checks for the post-authentication screen, shared bookmarks, destination login fields and buttons, and successful-login screens. Supporting another organization or connection environment requires inspecting the actual screens and workflow, then changing the state transitions and detection rules in the source.
 
-## 対応環境
+## Features
 
-- Android 12（API 31）以上
-- SSBProのパッケージ名: `jp.co.soliton.securebrowserpro`
-- 動作確認済み: Pixel 7 Pro、Lenovo IdeaPad Duet Gen 9（ChromeOS）
+- Mobile: signs in to SSBPro, then signs in to the mobile site.
+- PC: signs in to SSBPro, opens the PC site from shared bookmarks, and signs in.
+- Mail: signs in to SSBPro, opens the `事務処理用PCメール` shared bookmark, and signs in.
+- Selecting PC or Mail skips the mobile-site login.
+- Credentials are encrypted with an AES-256/GCM key held by Android Keystore.
+- Each automation run must be started explicitly by the user and stops after success, failure, or timeout.
 
-## 前提
+## Requirements
 
-- SSBProがインストールされ、接続先などの初期設定が完了していること
-- 利用者自身がソースコードを確認し、Android StudioでAPKをビルドできること
+- Android 12 (API 31) or later
+- SSBPro package: `jp.co.soliton.securebrowserpro`
+- Tested devices: Pixel 7 Pro and Lenovo IdeaPad Duet Gen 9 (ChromeOS)
+- SSBPro installed and its connection configured
+- Android Studio and the ability to inspect the source and build an APK
 
-ビルド済みAPKは配布していません。
+Prebuilt APKs are not distributed.
 
-## ビルド
+## Build
 
-継続して利用するAPKは、Android Studioで署名付きリリースAPKとして作成します。
+For an APK you intend to keep using, create a signed release APK in Android Studio.
 
-1. 更新版を作る場合は、`app/build.gradle.kts` の `versionCode`を前回より大きい整数へ変更し、利用者向けの `versionName` も更新します。
-2. `Build` → `Generate Signed App Bundle or APK` を選択します。
-3. `APK` を選択して次へ進み、モジュールに `app` を指定します。
-4. 自分のキーストア、鍵のエイリアス、各パスワードを指定します。初回は `Create new` からキーストアと署名鍵を作成できます。
-5. 次の画面で出力先とビルド種類 `release` を指定し、必要なAPK Signature Versionsを選択します。特別な互換性要件がなければAndroid Studioの既定の選択を使用します。
-6. `Create` を押して署名付きAPKを生成します。
+1. For an update, increment `versionCode` in `app/build.gradle.kts` and update the user-facing `versionName`.
+2. Select **Build > Generate Signed App Bundle or APK**.
+3. Select **APK**, continue, and choose the `app` module.
+4. Select your keystore, key alias, and passwords. For a first build, use **Create new** to create a keystore and signing key.
+5. Select the output location and `release` build type. Unless you have a specific compatibility requirement, keep Android Studio's default APK signature versions.
+6. Select **Create**.
 
-署名鍵とキーストアのパスワードは安全に保管してください。更新版も必ず同じ鍵で署名します。異なる鍵で署名したAPKは既存アプリへ上書きインストールできません。
+Keep the signing key and keystore passwords secure. Every update must use the same key; an APK signed with a different key cannot replace the installed app.
 
-`versionCode` と `versionName` の初期値は次の場所にあります。
+The current version values are:
 
 ```kotlin
 // app/build.gradle.kts
@@ -52,76 +54,100 @@ defaultConfig {
 }
 ```
 
-一時的な動作確認だけであれば、ビルドバリアントに `debug` を選び、`Build` → `Generate Bundle(s) / APK(s)` → `Generate APK(s)` でデバッグAPKを生成できます。デバッグAPKはAndroid SDKのデバッグ鍵で自動的に署名され、通常は `app/build/outputs/apk/debug/app-debug.apk` に生成されます。
+For temporary testing, select the `debug` build variant and use **Build > Generate Bundle(s) / APK(s) > Generate APK(s)**. The debug APK is signed automatically with the Android SDK debug key and is normally written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-## スマートフォンへのインストール
+Command-line checks use the included Gradle wrapper:
 
-1. 作成した署名付きAPKをスマートフォンへコピーします。
-2. スマートフォンのファイルアプリなどからAPKを開きます。
-3. 必要に応じて、そのファイルアプリに「不明なアプリのインストール」を許可します。
-4. 画面の案内に従ってインストールします。
+```powershell
+.\gradlew.bat test
+.\gradlew.bat assembleDebug
+```
 
-同じ署名鍵で作成した更新版は、同じ方法でAPKを開くと既存アプリを更新できます。Android Studioから直接動作確認する場合や、開発用途ではUSBデバッグとADBも使用できます。
+On macOS or Linux, use `./gradlew` instead of `.\gradlew.bat`.
+
+## Install on an Android Phone
+
+1. Copy the signed APK to the phone.
+2. Open it from a file manager.
+3. If prompted, allow that file manager to install unknown apps.
+4. Follow the installation prompts.
+
+An update signed with the same key can be installed in the same way. For development, you can also use USB debugging and ADB:
 
 ```text
 adb install path/to/app.apk
 ```
 
-## Chromebookへのインストール
+## Install on a Chromebook
 
-このLinux環境からADBデバッグを有効にする方法は、Googleの公式案内では2020年以降に発売されたChromebookが対象です。設定項目が表示されない機種や管理対象端末では利用できない場合があります。
+Google's documented method for enabling ADB debugging from the Linux development environment applies to Chromebooks released in 2020 or later. The setting may be unavailable on some models or managed devices.
 
-1. ChromeOSの設定でLinux開発環境を有効にします。
-2. Linuxの設定から「Androidアプリの開発」を開き、ADBデバッグを有効にします。端末の再起動と警告への同意が必要です。
-3. 作成した署名付きAPKをChromebookの「Linuxファイル」へコピーします。
-4. LinuxターミナルでADBをインストールします。
+1. Enable the Linux development environment in ChromeOS settings.
+2. Open **Develop Android apps** in the Linux settings and enable ADB debugging. A restart and confirmation of the warning are required.
+3. Copy the signed APK to **Linux files**.
+4. Install ADB in the Linux terminal.
 
 ```text
 sudo apt install adb
 ```
 
-5. 同じChromebook内のLinux環境からAndroid環境へ接続し、表示されたデバッグ許可ダイアログを承認します。
+5. Connect from the Linux environment to Android and approve the debugging prompt.
 
 ```text
 adb connect arc
 ```
 
-6. Linux環境からAPKをインストールします。
+6. Install the APK.
 
 ```text
 adb install ~/app-release.apk
 ```
 
-ファイル名や保存場所が異なる場合は、実際のAPKのパスへ置き換えてください。同じ署名鍵の更新版は `adb install -r ~/app-release.apk` で上書きできます。
+Replace the filename or path as needed. To update an installation signed with the same key, use `adb install -r ~/app-release.apk`.
 
-参考: [Android Developers - ChromeOSの開発環境を準備する](https://developer.android.com/develop/devices/chromeos/learn/development-environment)
+Reference: [Android Developers — Prepare the development environment](https://developer.android.com/develop/devices/chromeos/learn/development-environment)
 
-### Chromebookでの表示サイズ
+### Window size on Chromebook
 
-Androidアプリのウィンドウサイズが固定される場合は、対象アプリのタイトルバーから「サイズ変更可能」を選択してください。これはChromeOS側の表示設定です。
+If the Android app window has a fixed size, select the resizable option from the app's title bar. This is a ChromeOS display setting.
 
-## アプリの初期設定
+## Initial Setup and Use
 
-1. SSB Login Helperを起動します。
-2. ログインIDとパスワードを入力して保存します。
-3. 「ユーザー補助設定を開く」を押します。
-4. Androidのユーザー補助設定で「SSB Login Helper」を有効にし、警告内容を確認して許可します。
-5. SSB Login Helperへ戻り、「スマホ版を開く」「PC版を開く」または「メールを開く」を押します。
+1. Open SSB Login Helper.
+2. Enter and save the login ID and password.
+3. Tap the button that opens Accessibility settings.
+4. Find and enable **SSB Login Helper**, review Android's warning, and approve it.
+5. Return to the app and tap **スマホ版を開く**, **PC版を開く**, or **メールを開く**.
 
-## セキュリティ
+The accessibility service observes SSBPro's UI, fills the stored credentials into recognized fields, and activates the expected controls. It does not run continuously on a schedule: a pending request is created by a button tap and consumed once by the service.
 
-- 認証情報はAndroid KeystoreのAES-256/GCM鍵で暗号化して保存します。
-- 認証情報と自動操作要求は、クラウドバックアップおよび端末間転送から除外します。
-- 通常のAndroid端末では、認証情報入力画面のスクリーンショットと最近使ったアプリ画面への表示を防ぎます。
-- ChromeOSでは仮想キーボードとの互換性を優先するため、画面キャプチャ禁止設定を使用しません。
-- 署名鍵、APK、端末固有の設定ファイルはGitの管理対象外です。
+To change or remove stored credentials, use the corresponding controls in the app. Disable the service from Android Accessibility settings when it is no longer needed.
 
-## 注意
+## Security
 
-このアプリは特定の組織の接続環境専用であり、別の組織向けに接続先を設定画面から変更する仕組みはありません。
+- Credentials are encrypted using an AES-256/GCM key stored in Android Keystore.
+- Credentials and pending automation requests are excluded from cloud backup and device-to-device transfer.
+- On regular Android devices, screenshots and previews in the recent-apps screen are blocked while the credential screen is visible.
+- On ChromeOS, screen-capture blocking is not enabled because it can interfere with the virtual keyboard.
+- Signing keys, APKs, and device-specific configuration files are excluded from Git.
+- An accessibility service can inspect and interact with on-screen content. Enable this service only after reviewing the source and Android's permission warning.
 
-同じ接続環境でも、SSBProや対象Webサイトの画面構成、表示文字、View IDが変更された場合は、自動操作の調整が必要になることがあります。
+## Limitations and Disclaimer
 
-## ライセンス
+This is an unofficial, environment-specific tool and is not affiliated with or endorsed by Soliton Systems K.K. It has no UI for configuring another organization's destinations.
+
+Changes to SSBPro or the destination sites—including text, view IDs, or screen layouts—may break automation and require source changes. Review your organization's rules before using the app, and use it at your own risk.
+
+## Tests
+
+Run the local unit tests with:
+
+```powershell
+.\gradlew.bat test
+```
+
+GitHub Actions runs the same Gradle test task for pushes and pull requests. Instrumented tests require an Android device or emulator and are not part of this workflow.
+
+## License
 
 [MIT License](LICENSE)
