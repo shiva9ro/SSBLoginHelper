@@ -4,8 +4,6 @@ English | [日本語](README.ja.md)
 
 SSB Login Helper is an Android app that assists with login flows in SSBPro (Soliton SecureBrowser Pro). It encrypts and stores a login ID and password on the device, then performs one accessibility-driven automation run only after the user explicitly taps a launch button.
 
-Related article (Japanese): [SSBProのログイン操作をワンタップにするAndroidアプリ「SSBLoginHelper」を作った](https://qiita.com/shiva9ro/items/95baf4d98abb0e5cdb5d)
-
 ## Scope
 
 This app is tailored to one specific organization's SSBPro connection environment. It is not a general-purpose SSBPro automation tool, and the current code works as-is only with that environment.
@@ -149,6 +147,10 @@ Run the local unit tests with:
 ```
 
 GitHub Actions runs the same Gradle test task for pushes and pull requests. Instrumented tests require an Android device or emulator and are not part of this workflow.
+
+## Related articles
+
+- [SSBProのログイン操作をワンタップにするAndroidアプリ「SSBLoginHelper」を作った (Qiita, Japanese)](https://qiita.com/shiva9ro/items/95baf4d98abb0e5cdb5d)
 
 ## License
 

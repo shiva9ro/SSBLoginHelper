@@ -5,8 +5,6 @@
 SSBPro（Soliton SecureBrowser Pro）のログイン操作を補助するAndroidアプリです。
 登録したログインIDとパスワードを端末内で暗号化して保存し、ユーザーがボタンを押したときだけユーザー補助サービスによる自動操作を1回実行します。
 
-関連記事: [SSBProのログイン操作をワンタップにするAndroidアプリ「SSBLoginHelper」を作った](https://qiita.com/shiva9ro/items/95baf4d98abb0e5cdb5d)
-
 ## 対象範囲
 
 このアプリは、開発者が所属する特定の組織のSSBPro接続環境に合わせて作っています。SSBProを利用するすべての環境で動く汎用ツールではなく、現在のコードをそのまま利用できるのは、この特定の接続環境に限られます。
@@ -140,6 +138,10 @@ Androidアプリのウィンドウサイズが固定される場合は、対象�
 ```
 
 macOSまたはLinuxでは `./gradlew test` を使用します。GitHub Actionsでもpushとpull requestのたびに同じタスクを実行します。Android端末またはエミュレーターが必要な計装テストは、このワークフローには含まれません。
+
+## 関連記事
+
+- [SSBProのログイン操作をワンタップにするAndroidアプリ「SSBLoginHelper」を作った（Qiita）](https://qiita.com/shiva9ro/items/95baf4d98abb0e5cdb5d)
 
 ## ライセンス
 
