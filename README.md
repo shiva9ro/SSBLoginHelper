@@ -18,6 +18,8 @@ The code contains environment-specific checks for the post-authentication screen
 - PC: signs in to SSBPro, opens the PC site from shared bookmarks, and signs in.
 - Mail: signs in to SSBPro, opens the `事務処理用PCメール` shared bookmark, and signs in.
 - Selecting PC or Mail skips the mobile-site login.
+- On slower connections, PC login waits for the page to stop changing and revalidates the entered credentials before tapping the button.
+- If reconnection produces multiple certificate warnings with identical text, each warning window is handled once.
 - Credentials are encrypted with an AES-256/GCM key held by Android Keystore.
 - Each automation run must be started explicitly by the user and stops after success, failure, or timeout.
 

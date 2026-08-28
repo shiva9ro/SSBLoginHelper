@@ -51,4 +51,44 @@ class SecurityWarningTransitionTest {
             )
         )
     }
+
+    @Test
+    fun warningIsClickedOncePerWindowState() {
+        assertEquals(
+            true,
+            shouldClickSecurityWarning(
+                windowStateVersion = 10L,
+                clickedAtWindowStateVersion = 9L
+            )
+        )
+
+        assertEquals(
+            false,
+            shouldClickSecurityWarning(
+                windowStateVersion = 10L,
+                clickedAtWindowStateVersion = 10L
+            )
+        )
+    }
+
+    @Test
+    fun pcLoginWaitsForCompleteQuietPeriod() {
+        assertEquals(
+            false,
+            hasQuietPeriodElapsed(
+                now = 2_499L,
+                lastChangeAt = 1_000L,
+                quietPeriodMillis = 1_500L
+            )
+        )
+
+        assertEquals(
+            true,
+            hasQuietPeriodElapsed(
+                now = 2_500L,
+                lastChangeAt = 1_000L,
+                quietPeriodMillis = 1_500L
+            )
+        )
+    }
 }

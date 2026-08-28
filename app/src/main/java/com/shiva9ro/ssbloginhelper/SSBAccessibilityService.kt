@@ -58,6 +58,21 @@ internal fun phaseAfterSecurityWarning(
     }
 }
 
+internal fun hasQuietPeriodElapsed(
+    now: Long,
+    lastChangeAt: Long,
+    quietPeriodMillis: Long
+): Boolean {
+    return now - lastChangeAt >= quietPeriodMillis
+}
+
+internal fun shouldClickSecurityWarning(
+    windowStateVersion: Long,
+    clickedAtWindowStateVersion: Long?
+): Boolean {
+    return clickedAtWindowStateVersion != windowStateVersion
+}
+
 /**
  * Helperアプリから開始された1回の自動化セッションを処理する。
  *
@@ -100,6 +115,13 @@ class SSBAccessibilityService : AccessibilityService() {
          */
         private const val PC_LOGIN_CLICK_DELAY_MS =
             800L
+
+        /*
+         * PC版ログインフォームについて、最後の画面更新から
+         * この時間だけ変化がなければ安定したとみなす。
+         */
+        private const val PC_LOGIN_QUIET_PERIOD_MS =
+            1_500L
 
         /*
          * 各段階の待機上限。
@@ -186,6 +208,19 @@ class SSBAccessibilityService : AccessibilityService() {
     private var actionInProgress =
         false
 
+    private var lastContentChangedAt =
+        0L
+
+    /*
+     * 同じ文面の証明書警告が再接続時に複数枚出るため、
+     * 文面ではなくウィンドウ切替単位で重複クリックを防ぐ。
+     */
+    private var windowStateVersion =
+        0L
+
+    private var securityWarningClickedAtWindowStateVersion:
+            Long? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
 
@@ -202,6 +237,9 @@ class SSBAccessibilityService : AccessibilityService() {
         phaseStartedAt = 0L
         inspectionScheduled = false
         actionInProgress = false
+        lastContentChangedAt = 0L
+        windowStateVersion = 0L
+        securityWarningClickedAtWindowStateVersion = null
 
         Log.i(
             TAG,
@@ -227,6 +265,23 @@ class SSBAccessibilityService : AccessibilityService() {
          */
         if (eventPackage != SSB_PACKAGE) {
             return
+        }
+
+        val eventAt =
+            System.currentTimeMillis()
+
+        if (
+            event.eventType ==
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) {
+            lastContentChangedAt = eventAt
+        }
+
+        if (
+            event.eventType ==
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        ) {
+            windowStateVersion++
         }
 
         /*
@@ -282,6 +337,7 @@ class SSBAccessibilityService : AccessibilityService() {
 
         inspectionScheduled = false
         actionInProgress = false
+        securityWarningClickedAtWindowStateVersion = null
 
         automationTarget = target
 
@@ -442,7 +498,25 @@ class SSBAccessibilityService : AccessibilityService() {
          * 表示された場合もOKを押せるようにする。
          */
         if (isSecurityWarning(root)) {
-            clickSecurityWarning(root)
+            if (
+                !shouldClickSecurityWarning(
+                    windowStateVersion,
+                    securityWarningClickedAtWindowStateVersion
+                )
+            ) {
+                Log.d(
+                    TAG,
+                    "Security warning already handled in current window; " +
+                            "waiting: windowStateVersion=$windowStateVersion"
+                )
+
+                scheduleInspection(
+                    delayMillis = 800L
+                )
+            } else {
+                clickSecurityWarning(root)
+            }
+
             return
         }
 
@@ -1077,6 +1151,9 @@ class SSBAccessibilityService : AccessibilityService() {
                 target = automationTarget
             )
 
+        securityWarningClickedAtWindowStateVersion =
+            windowStateVersion
+
         /*
          * 同じ警告が画面に残った場合にタイムアウト計測を
          * 毎回リセットしないよう、段階が変わる場合だけ更新する。
@@ -1089,7 +1166,8 @@ class SSBAccessibilityService : AccessibilityService() {
             TAG,
             "Security warning OK clicked: " +
                     "phase=$phaseBeforeWarning, " +
-                    "resumePhase=$resumePhase"
+                    "resumePhase=$resumePhase, " +
+                    "windowStateVersion=$windowStateVersion"
         )
 
         scheduleInspection(
@@ -1746,73 +1824,175 @@ class SSBAccessibilityService : AccessibilityService() {
 
         actionInProgress = true
 
+        waitForStablePcLoginForm(
+            credentialsSetAt =
+            System.currentTimeMillis(),
+            expectedUsernameLength =
+            credentials.loginId.length,
+            expectedPasswordLength =
+            credentials.password.length
+        )
+    }
+
+    /**
+     * PC版フォームの画面更新が止まるまで待ってからログインする。
+     * 更新イベントが来るたびに静止時間の計測をやり直す。
+     */
+    private fun waitForStablePcLoginForm(
+        credentialsSetAt: Long,
+        expectedUsernameLength: Int,
+        expectedPasswordLength: Int
+    ) {
         handler.postDelayed(
             {
-                /*
-                 * 待機中にWebViewが再描画される可能性があるため、
-                 * 現在の画面ツリーからボタンを再取得する。
-                 */
+                if (
+                    sessionState != SessionState.RUNNING ||
+                    automationPhase != AutomationPhase.WAITING_FOR_PC_LOGIN
+                ) {
+                    return@postDelayed
+                }
+
+                if (isCurrentPhaseTimedOut()) {
+                    failSession(
+                        "PC版ログイン画面が安定しませんでした。"
+                    )
+                    return@postDelayed
+                }
+
                 val currentRoot =
                     rootInActiveWindow
 
                 if (
                     currentRoot == null ||
-                    currentRoot.packageName
-                        ?.toString() !=
-                    SSB_PACKAGE
+                    currentRoot.packageName?.toString() != SSB_PACKAGE
                 ) {
                     failSession(
                         "PC版ログイン画面を再取得できませんでした。"
                     )
-
                     return@postDelayed
                 }
 
-                val currentLoginContainer =
-                    findFirstByViewId(
-                        currentRoot,
-                        "login-input"
+                val lastRelevantChangeAt =
+                    maxOf(
+                        credentialsSetAt,
+                        lastContentChangedAt
                     )
 
-                val currentLoginButton =
-                    findFirstByViewId(
-                        currentRoot,
-                        "login-btn"
-                    )
+                val quietFor =
+                    System.currentTimeMillis() -
+                            lastRelevantChangeAt
 
                 if (
-                    currentLoginContainer == null ||
-                    currentLoginButton == null
+                    !hasQuietPeriodElapsed(
+                        System.currentTimeMillis(),
+                        lastRelevantChangeAt,
+                        PC_LOGIN_QUIET_PERIOD_MS
+                    )
                 ) {
-                    failSession(
-                        "PC版ログインボタンを再取得できませんでした。"
+                    Log.d(
+                        TAG,
+                        "PC login form is still changing; " +
+                                "waiting: quietForMs=$quietFor"
                     )
 
+                    waitForStablePcLoginForm(
+                        credentialsSetAt,
+                        expectedUsernameLength,
+                        expectedPasswordLength
+                    )
                     return@postDelayed
                 }
 
-                /*
-                 * タップ前に待機段階を変更し、
-                 * ログイン画面が残っても再送信しない。
-                 */
-                setPhase(
-                    AutomationPhase
-                        .WAITING_FOR_PC_PORTAL
+                tapStablePcLoginForm(
+                    currentRoot,
+                    expectedUsernameLength,
+                    expectedPasswordLength
                 )
-
-                val dispatched =
-                    tapNodeCenter(
-                        currentLoginButton
-                    )
-
-                if (!dispatched) {
-                    failSession(
-                        "PC版ログインボタンをタップできませんでした。"
-                    )
-                }
             },
             PC_LOGIN_CLICK_DELAY_MS
         )
+    }
+
+    private fun tapStablePcLoginForm(
+        currentRoot: AccessibilityNodeInfo,
+        expectedUsernameLength: Int,
+        expectedPasswordLength: Int
+    ) {
+        val currentLoginContainer =
+            findFirstByViewId(
+                currentRoot,
+                "login-input"
+            )
+
+        val currentLoginButton =
+            findFirstByViewId(
+                currentRoot,
+                "login-btn"
+            )
+
+        if (
+            currentLoginContainer == null ||
+            currentLoginButton == null
+        ) {
+            failSession(
+                "PC版ログインボタンを再取得できませんでした。"
+            )
+            return
+        }
+
+        val currentEditableNodes =
+            mutableListOf<AccessibilityNodeInfo>()
+
+        collectEditableNodes(
+            currentLoginContainer,
+            currentEditableNodes
+        )
+
+        val usernameLength =
+            nodeTextLength(
+                currentEditableNodes.getOrNull(0)
+            )
+
+        val passwordLength =
+            nodeTextLength(
+                currentEditableNodes.getOrNull(1)
+            )
+
+        Log.i(
+            TAG,
+            "PC login form stabilized; validating and tapping"
+        )
+
+        if (
+            currentEditableNodes.size < 2 ||
+            usernameLength != expectedUsernameLength ||
+            passwordLength != expectedPasswordLength
+        ) {
+            failSession(
+                "PC版の入力内容が画面更新後に保持されていません。"
+            )
+            return
+        }
+
+        if (!currentLoginButton.isEnabled) {
+            failSession(
+                "PC版ログインボタンが有効になっていません。"
+            )
+            return
+        }
+
+        setPhase(
+            AutomationPhase.WAITING_FOR_PC_PORTAL
+        )
+
+        val dispatched =
+            tapNodeCenter(currentLoginButton)
+
+        if (!dispatched) {
+            failSession(
+                "PC版ログインボタンをタップできませんでした。"
+            )
+        }
     }
 
     /**
@@ -2115,6 +2295,12 @@ class SSBAccessibilityService : AccessibilityService() {
         )
     }
 
+    private fun nodeTextLength(
+        node: AccessibilityNodeInfo?
+    ): Int {
+        return node?.text?.length ?: -1
+    }
+
     /**
      * 対象自身またはクリック可能な親要素を押す。
      */
@@ -2320,7 +2506,8 @@ class SSBAccessibilityService : AccessibilityService() {
 
                     Log.i(
                         TAG,
-                        "PC login tap completed"
+                        "PC login tap completed: " +
+                                "phase=$automationPhase"
                     )
 
                     actionInProgress = false
